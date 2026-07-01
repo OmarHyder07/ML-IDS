@@ -1,0 +1,13 @@
+use new_nb bash script 
+new_nb() {
+	echo "# %%" > "$1.py"
+	jupytext --set-formats ipynb,py:percent --sync "$1.py"
+}
+e.g. new_nb decision_tree -> creates .ipynb and .py
+jupyter lab (launch jupyter)
+cells in .py marked by "# %%" at the start of a cell
+after edits made in .py, run:
+jupytext --sync notebook.py
+reload jupyter
+
+If made edit in browser, use :e! in vim to pull these back into buffer.
