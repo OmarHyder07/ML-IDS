@@ -40,39 +40,27 @@ def compute_gradient(X, y, w, b):
         """
         
         m,n = X.shape
-        dj_dw = np.zeros((n,))
-        dj_db = 0.
+        f = sigmoid(X@w + b)
+        diff = f - y
+        dj_dw = (X.T @ diff) / m
+        dj_db = diff.mean()
         
-        for i in range(m):
-                fwb_i = sigmoid(X[i]@w + b)
-                diff = fwb_i - y[i]
-                for j in range(n):
-                        dj_dw[j] += diff*X[i, j] 
-                dj_db += diff
-        dj_dw /= m
-        dj_db /= m      
         return dj_dw, dj_db
                 
 def cost(X, y, w, b):
         """
         Args:
           X (ndarray(m,n))
-          y (ndarray(n,))
+          y (ndarray(m,))
           w (ndarray(n,))
           b (scalar)
         """
         
         m = X.shape[0]
-        cost = 0
-        for i in range(m):
-                fwb_i = sigmoid(X[i]@w + b)
-                if fwb_i == 0.0:
-                        fwb_i = 0.000001
-                if fwb_i == 1.0:
-                        fwb_i = 0.999999999999999
-                cost += -y[i]*math.log(fwb_i) - (1-y[i])*math.log(1-fwb_i)
-        cost /= m
-        return cost
+        f = sigmoid(X@w + b)
+        cost = -y*np.log(f) - (np.ones(m)-y)*np.log(np.ones(m)-f) 
+    
+        return cost.mean()
 
 def gradient_descent(X, y, w_in, b_in, alpha, iterations):
         """
@@ -126,12 +114,12 @@ print(train_y.shape, train_y.dtype)
 # init weights and biases...
 w_in = np.zeros_like(train_X[0])
 b_in = 0
-alpha = 0.01
-iters = 9
+alpha = 1
+iters = 1000
 
 # %%
-w,b,J_history = gradient_descent(train_X, train_y, w_in, b_in, alpha, iters)
-print(f"New weights: {w}, new bias: {b}")
+#w,b,J_history = gradient_descent(train_X, train_y, w_in, b_in, alpha, iters)
+#print(f"New weights: {w}, new bias: {b}")
 
 # The above code does not work!
 # Since there are unscaled pieces of data (which are in the thousands)
@@ -140,27 +128,7 @@ print(f"New weights: {w}, new bias: {b}")
 # So, scaling is not just for better results, it is impossible not to scale!
 
 # %%
-def z_scale(X):
-    # X (ndarray(m,n))
-
-    m,n = X.shape
-    scaled_X = copy.deepcopy(X)
-    averages = []
-    stdevs   = []
-    for i in range(n):
-        averages.append([col[i] for col in X])
-    for i in range(n):
-        stdevs.append(statistics.stdev(averages[i]))
-        averages[i] = np.mean(averages[i])
-    for i in range(n):
-        scaled_X -= averages
-        scaled_X /= stdevs
-    return scaled_X
-    
-
-
-# %%
-scaled_train_X = z_scale(train_X)
+scaled_train_X = (train_X - train_X.mean(axis=0)) / train_X.std(axis=0)
 w,b,J_history = gradient_descent(scaled_train_X, train_y, w_in, b_in, alpha, iters)
 print(f"New weights: {w}, new bias: {b}")
 
@@ -171,3 +139,5 @@ plt.xlabel("iteration")
 plt.ylabel("cost")
 plt.title("training loss vs. iteration")
 plt.show()
+
+# %%
