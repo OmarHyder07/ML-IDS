@@ -113,17 +113,20 @@ print(train_y.shape, train_y.dtype)
 # %%
 # Fit n-feature training data to model!
 # init weights and biases...
-w_in = np.zeros_like(train_X[0])
-b_in = 0
+w_in = np.random.random_sample(train_X[0].shape)
+b_in = np.random.random_sample()
 alpha = 0.1
-iters = 10000
+iters = 2000
 #scaled_train_X = (train_X - train_X.mean(axis=0)) / train_X.std(axis=0)
 scaled_train_X = train_X
 stdevs = train_X.std(axis=0)
 stdevs = np.clip(stdevs, 1e-7, None)
 scaled_train_X = (train_X - train_X.mean(axis=0)) / stdevs
 scaled_train_X[4:6] = np.log1p(train_X[4:6])
-print(scaled_train_X[0])
+
+print(w_in)
+print(b_in)
+#print(scaled_train_X[0])
 # print(np.ptp(scaled_train_X, axis=0))
 # print(scaled_train_X[:5])
 #plt.plot(np.zeros_like(scaled_train_X), scaled_train_X, 'x')

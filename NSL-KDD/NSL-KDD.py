@@ -15,7 +15,7 @@
 
 # %%
 import pandas as pd
-from sklearn import tree, metrics
+from sklearn import tree, metrics, linear_model
 from scipy.io import arff
 
 train_data, meta = arff.loadarff('KDDTrain+.arff')
@@ -31,7 +31,7 @@ train_df["class"] = train_df["class"].astype('category').cat.codes
 # %%
 # split training data into X and Y
 train_X = train_df.iloc[:, :41]
-train_Y = train_df.iloc[:, 41:]
+train_Y = train_df.iloc[:, 41]
 
 print(train_X.head())
 print(train_Y.head())
@@ -40,6 +40,8 @@ print(train_Y.head())
 # Fit train inputs to train outputs with Decision Tree
 model = tree.DecisionTreeClassifier()
 model.fit(train_X, train_Y)
+model_log_reg = linear_model.LogisticRegression()
+model_log_reg.fit(train_X, train_Y)
 
 # %%
 # Get test inputs
@@ -58,3 +60,9 @@ predictions = model.predict(test_X)
 
 # %%
 print(metrics.accuracy_score(test_Y, predictions))
+
+# %%
+predictions = model_log_reg.predict(test_X)
+print(metrics.accuracy_score(test_Y, predictions))
+
+# %%
