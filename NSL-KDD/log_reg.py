@@ -75,7 +75,6 @@ def gradient_descent(X, y, w_in, b_in, alpha, iterations):
         """
         
         J_history = []  
-        n = w_in.shape
         w = copy.deepcopy(w_in)
         b = b_in
         for i in range(iterations):
@@ -88,13 +87,15 @@ def gradient_descent(X, y, w_in, b_in, alpha, iterations):
                         print(f"Iteration {i:4d}: Cost {J_history[i]}")
         return w, b, J_history
 
-def NSL_KDD_scale(X):
-    stdevs = X.std(axis=0)
-    stdevs = np.clip(stdevs, 1e-7, None)
-    scaled_X = (X - X.mean(axis=0)) / stdevs
-    #re-scale src and dst bytes with log scaling
-    scaled_X[4:6] = np.log1p(X[4:6])
-    return scaled_X
+def fit_scaler(X):
+    mean = X.mean(axis=0)
+    std  = np.clip(X.std(axis=0), 1e-7, None)
+    return mean, std
+
+def apply_scaler(X, mean, std):
+    scaled = (X - mean) / std
+    scaled[:, 4:6] = np.log1p(X[:, 4:6])
+    return scaled
 
 
 # %%
@@ -111,10 +112,15 @@ test_df = pd.DataFrame(test_data)
 for col in df.select_dtypes([object]):
         df[col] = df[col].str.decode('utf-8')
         test_df[col] = test_df[col].str.decode('utf-8')
+
 for col in ['protocol_type', 'service', 'flag', 'class']:
+    le = LabelEncoder()
     le.fit(df[col])
     df[col] = le.transform(df[col])
-    test_df[col] = le.transform(test_df[col])
+    known = set(le.classes_)
+    test_df[col] = test_df[col].map(
+        lambda v: le.transform([v])[0] if v in known else -1
+    )
 
 # split training and test data into X and Y
 train_X = df.iloc[:, :41].to_numpy(dtype=float)
@@ -123,15 +129,16 @@ train_y = df.iloc[:, 41].to_numpy(dtype=float)
 test_X = test_df.iloc[:, :41].to_numpy(dtype=float)
 test_y = test_df.iloc[:, 41].to_numpy(dtype=float)
 
-scaled_train_X = NSL_KDD_scale(train_X)
-scaled_test_X  = NSL_KDD_scale(test_X)
+mean, std = fit_scaler(train_X)
+scaled_train_X = apply_scaler(train_X, mean, std)
+scaled_test_X  = apply_scaler(test_X, mean, std)
 
 # %%
 # init weights and biases...
 w_in = np.random.random_sample(train_X[0].shape)
 b_in = np.random.random_sample()
 alpha = 0.1
-iters = 2000
+iters = 1000
 
 # %%
 # Fit n-feature training data to model!
@@ -157,3 +164,18 @@ preds = (sigmoid(scaled_test_X @ w + b) >= 0.5).astype(int)
 print((preds == test_y).mean())
 
 # %%
+le.classes_
+
+# %%
+# Creating a confusion matrix on the test set
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+#tn, fp, fn, tp = metrics.confusion_matrix(test_y, preds).ravel().tolist()
+# sklean LabelEncoder encodes a category by alphabetic order
+# thus, anomalies are encoded as 0 and normal traffic as 1
+cm = confusion_matrix(test_y, preds, labels=[0, 1])
+disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
+disp.plot()
+# In our context:
+# True Positive is a correctly classified n
+# False Positive: normal traffic labeled as an attack
+# True Negative: 
