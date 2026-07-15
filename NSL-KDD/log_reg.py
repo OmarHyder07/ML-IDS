@@ -93,8 +93,12 @@ def fit_scaler(X):
     return mean, std
 
 def apply_scaler(X, mean, std):
-    scaled = (X - mean) / std
+    # sorry for magic numbers
+    # items 4 and 5 are source and destination bytes
+    scaled = X.copy()
+    scaled[:, :4] = (X[:, :4] - mean[:4]) / std[:4]
     scaled[:, 4:6] = np.log1p(X[:, 4:6])
+    scaled[:, 6:] = (X[:, 6:] - mean[6:]) / std[6:]
     return scaled
 
 
@@ -113,7 +117,7 @@ for col in df.select_dtypes([object]):
         df[col] = df[col].str.decode('utf-8')
         test_df[col] = test_df[col].str.decode('utf-8')
 
-for col in ['protocol_type', 'service', 'flag', 'class']:
+for col in ['protocol_type', 'service', 'flag']:
     le = LabelEncoder()
     le.fit(df[col])
     df[col] = le.transform(df[col])
@@ -121,6 +125,10 @@ for col in ['protocol_type', 'service', 'flag', 'class']:
     test_df[col] = test_df[col].map(
         lambda v: le.transform([v])[0] if v in known else -1
     )
+
+cats = ['normal', 'anomaly']  # index 0 = normal, index 1 = anomaly
+df['class']      = pd.Categorical(df['class'], categories=cats).codes
+test_df['class'] = pd.Categorical(test_df['class'], categories=cats).codes
 
 # split training and test data into X and Y
 train_X = df.iloc[:, :41].to_numpy(dtype=float)
@@ -155,27 +163,32 @@ plt.show()
 
 # %%
 # Training cost
-preds = (sigmoid(scaled_train_X @ w + b) >= 0.5).astype(int)
-print((preds == train_y).mean())
+train_preds = (sigmoid(scaled_train_X @ w + b) >= 0.5).astype(int)
+print((train_preds == train_y).mean())
 
 # %%
 # Test cost
-preds = (sigmoid(scaled_test_X @ w + b) >= 0.5).astype(int)
+y_scores = sigmoid(scaled_test_X @ w + b)
+preds    = (y_scores >= 0.016633173499329447).astype(int)
 print((preds == test_y).mean())
-
-# %%
-le.classes_
 
 # %%
 # Creating a confusion matrix on the test set
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-#tn, fp, fn, tp = metrics.confusion_matrix(test_y, preds).ravel().tolist()
-# sklean LabelEncoder encodes a category by alphabetic order
-# thus, anomalies are encoded as 0 and normal traffic as 1
 cm = confusion_matrix(test_y, preds, labels=[0, 1])
-disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
+disp = ConfusionMatrixDisplay(cm, display_labels=["normal", "anomaly"])
 disp.plot()
-# In our context:
-# True Positive is a correctly classified n
-# False Positive: normal traffic labeled as an attack
-# True Negative: 
+
+# %%
+from sklearn.metrics import classification_report
+print(classification_report(test_y, preds, target_names=["normal", "anomaly"]))
+
+# %%
+from sklearn.metrics import roc_curve, RocCurveDisplay
+RocCurveDisplay.from_predictions(test_y, y_scores, name="logreg")
+fpr, tpr, thresholds = roc_curve(test_y, y_scores)
+j = np.argmax(tpr - fpr)
+best_threshold = thresholds[j]
+print(best_threshold)
+
+# %%
