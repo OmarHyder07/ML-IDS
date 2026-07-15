@@ -5,3 +5,5 @@ The resources wasted on a false positive are minor compared to the damage a miss
 Thus, in this model I optimised for recall (true positive rate) to be as high as possible. 
 This was at the cost of having a high false positive rate. 
 My conclusion is that logistic regression is simply not strong enough for this use case, where we desire a high recall but also a high F1 score.
+
+Which led me to investigate the effectiveness of a Decision Tree model.
