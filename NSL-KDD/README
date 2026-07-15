@@ -1,13 +1,7 @@
-use new_nb bash script 
-new_nb() {
-	echo "# %%" > "$1.py"
-	jupytext --set-formats ipynb,py:percent --sync "$1.py"
-}
-e.g. new_nb decision_tree -> creates .ipynb and .py
-jupyter lab (launch jupyter)
-cells in .py marked by "# %%" at the start of a cell
-after edits made in .py, run:
-jupytext --sync notebook.py
-reload jupyter
-
-If made edit in browser, use :e! in vim to pull these back into buffer.
+From scratch logistic regression trained on NSL-KDD, plotting ROC and using Youden's J statistic to find an optimal threshold.
+{list of achieved metrics once i'm done with regularisation}
+With any intrusion detection system, the rate of false negatives (missed attacks) should be close to 0.
+The resources wasted on a false positive are minor compared to the damage a missed attack could cause.
+Thus, in this model I optimised for recall (true positive rate) to be as high as possible. 
+This was at the cost of having a high false positive rate. 
+My conclusion is that logistic regression is simply not strong enough for this use case, where we desire a high recall but also a high F1 score.
