@@ -126,7 +126,7 @@ def evaluate(X, y, w, b, threshold=0.5, title=""):
     cm = confusion_matrix(y, preds, labels=[0, 1])
     ConfusionMatrixDisplay(cm, display_labels=["normal", "anomaly"]).plot()
     plt.title(title)
-    #return preds
+    return preds
 
 
 # %% [markdown]
@@ -263,13 +263,42 @@ thr = best_threshold_youden(cv_X, cv_y, w, b)
 print(f"Youden's J threshold: {thr:.3f}")
 
 evaluate(scaled_train_X, train_y, w, b, threshold=0.5, title="TRAIN {thr=0.5}")
-evaluate(scaled_test_X, test_y, w, b, threshold=thr, title="TEST {thr=Youden's J}")
+preds = evaluate(scaled_test_X, test_y, w, b, threshold=thr, title="TEST {thr=Youden's J}")
 
 # %% [markdown]
-# ## Quan
+# ## Testing on seen vs. unseen attack types in the test set
+# NSL-KDD notoriously contains attack types in the test set that are not seen in the training set.
+# I want to quantify the difference in recall between attacks that are in the training set (seen) and attacks that aren't (unseen).
 
 # %%
 train_raw = pd.read_csv('KDDTrain+.txt', header=None)
 test_raw  = pd.read_csv('KDDTest+.txt',  header=None)
-train_attack = train_raw.iloc[:. 41]
+train_attack = train_raw.iloc[:, 41]
 test_attack  = test_raw.iloc[:, 41]
+train_attacks = set(train_attack) - {'normal'}
+test_attacks  = set(test_attack)  - {'normal'}
+novel = test_attacks - train_attacks
+print(f"{len(novel)} attack types in test but never in training:", novel)
+
+
+# %%
+def category(a):
+    if a == 'normal':      return 'normal'
+    if a in train_attacks: return 'seen_attack'
+    return 'novel_attack'
+
+test_category = test_attack.map(category)
+
+# %%
+for grp in ['seen_attack', 'novel_attack']:
+    mask = (test_category == grp).to_numpy()
+    caught = (preds[mask] == 1).mean()
+    print(f"{grp}: recall = {caught:.3f} (n={mask.sum()})")
+    
+
+# %%
+# Since we're taking the attack labels from the .txt and I stupidly started with .arff,
+# this makes sure they ordered in the same way so the attack types i find in .txt align with predictions from .arff.
+# Future Omar: maybe pay more attention to which data set you are downloading...
+derived = (test_attack != 'normal').astype(int).to_numpy()
+print("labels aligned:", (derived == test_y).all())
