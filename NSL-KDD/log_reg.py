@@ -131,7 +131,7 @@ def evaluate(X, y, w, b, threshold=0.5, title=""):
 
 # %% [markdown]
 # ## Scaling
-# Per-feature: log1p for the heavy-tailed byte columns (4, 5), standardise the rest.
+# Per-feature: log1p for the heavy-tailed byte columns, standardise the rest.
 
 # %%
 def fit_scaler(X, std_cols):
@@ -152,8 +152,8 @@ def apply_scaler(X, mean, std, std_cols, log_cols):
 # one-hot encoding applied to 'service' column.
 
 # %%
-train_data, _ = arff.loadarff('KDDTrain+.arff')
-test_data, _ = arff.loadarff('KDDTest+.arff')
+train_data, _ = arff.loadarff('data/KDDTrain+.arff')
+test_data, _ = arff.loadarff('data/KDDTest+.arff')
 df = pd.DataFrame(train_data)
 test_df = pd.DataFrame(test_data)
 
@@ -271,8 +271,8 @@ preds = evaluate(scaled_test_X, test_y, w, b, threshold=thr, title="TEST {thr=Yo
 # I want to quantify the difference in recall between attacks that are in the training set (seen) and attacks that aren't (unseen).
 
 # %%
-train_raw = pd.read_csv('KDDTrain+.txt', header=None)
-test_raw  = pd.read_csv('KDDTest+.txt',  header=None)
+train_raw = pd.read_csv('data/KDDTrain+.txt', header=None)
+test_raw  = pd.read_csv('data/KDDTest+.txt',  header=None)
 train_attack = train_raw.iloc[:, 41]
 test_attack  = test_raw.iloc[:, 41]
 train_attacks = set(train_attack) - {'normal'}
@@ -294,7 +294,7 @@ for grp in ['seen_attack', 'novel_attack']:
     mask = (test_category == grp).to_numpy()
     caught = (preds[mask] == 1).mean()
     print(f"{grp}: recall = {caught:.3f} (n={mask.sum()})")
-    
+
 
 # %%
 # Since we're taking the attack labels from the .txt and I stupidly started with .arff,
