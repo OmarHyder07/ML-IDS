@@ -17,20 +17,29 @@
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
-import math
 import copy
 import pandas as pd
 from scipy.io import arff
-import statistics
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    roc_curve, confusion_matrix, ConfusionMatrixDisplay,
+    classification_report, fbeta_score,
+)
+import math
+
+RANDOM_STATE = 0
+np.random.seed(RANDOM_STATE)
+
+# %% [markdown]
+# ## Model: Logistic Regression from scratch
 
 # %%
-# Logistic regression functions
-
 def sigmoid(x):
-    x = np.clip(x, -500, 500)
+    x = np.clip(x, -500, 500)  # To guard np.exp against overflow
     return 1/(1+np.exp(-x))
 
-def compute_gradient(X, y, w, b):
+def compute_gradient(X, y, w, b, reg_param):
         """
         Args:
           X (ndarray (m,n))
@@ -43,11 +52,12 @@ def compute_gradient(X, y, w, b):
         f = sigmoid(X@w + b)
         diff = f - y
         dj_dw = (X.T @ diff) / m
+        dj_dw += (reg_param / m) * w
         dj_db = diff.mean()
         
         return dj_dw, dj_db
                 
-def cost(X, y, w, b):
+def cost(X, y, w, b, reg_param):
         """
         Args:
           X (ndarray(m,n))
@@ -60,10 +70,10 @@ def cost(X, y, w, b):
         f = sigmoid(X@w + b)
         f = np.clip(f, 1e-9, 1 - 1e-9)
         cost = -y*np.log(f) - (1-y)*np.log(1-f) 
-    
-        return cost.mean()
+        regularisation_term = (reg_param / (2*m)) * np.sum(w**2)
+        return cost.mean() + regularisation_term
 
-def gradient_descent(X, y, w_in, b_in, alpha, iterations):
+def gradient_descent(X, y, w_in, b_in, alpha, iterations, reg_param=0, show=True):
         """
         Args:
           X (ndarray(m,n))
@@ -78,14 +88,55 @@ def gradient_descent(X, y, w_in, b_in, alpha, iterations):
         w = copy.deepcopy(w_in)
         b = b_in
         for i in range(iterations):
-                dj_dw, dj_db = compute_gradient(X, y, w, b)
+                dj_dw, dj_db = compute_gradient(X, y, w, b, reg_param)
                 w -= alpha*dj_dw
                 b -= alpha*dj_db
-                J = cost(X, y, w, b)
+                J = cost(X, y, w, b, reg_param)
                 J_history.append(J)
-                if i % math.ceil(iterations / 10) == 0:
+                if i % math.ceil(iterations / 10) == 0 and show:
                         print(f"Iteration {i:4d}: Cost {J_history[i]}")
         return w, b, J_history
+
+
+# %% [markdown]
+# ## Prediction & Evaluation helpers
+
+# %%
+def predict_proba(X, w, b):
+    return sigmoid(X @ w + b)
+
+
+def predict(X, w, b, threshold=0.5):
+    return (predict_proba(X, w, b) >= threshold).astype(int)
+
+
+def best_threshold_youden(X_cv, y_cv, w, b):
+    """Threshold that maximises TPR - FPR (Youden's J) on the CV set."""
+    fpr, tpr, thresholds = roc_curve(y_cv, predict_proba(X_cv, w, b))
+    return thresholds[np.argmax(tpr - fpr)]
+
+
+def evaluate(X, y, w, b, threshold=0.5, title=""):
+    """Print report + F2, show confusion matrix. Returns the predictions."""
+    preds = predict(X, w, b, threshold)
+    print(f"--- {title} (threshold={threshold:.3f}) ---")
+    print(f"accuracy: {(preds == y).mean():.4f}")
+    print(classification_report(y, preds, target_names=["normal", "anomaly"]))
+    print(f"F2-score: {fbeta_score(y, preds, beta=2):.4f}\n")
+    cm = confusion_matrix(y, preds, labels=[0, 1])
+    ConfusionMatrixDisplay(cm, display_labels=["normal", "anomaly"]).plot()
+    plt.title(title)
+    #return preds
+
+
+# %% [markdown]
+# ## Scaling
+# Per-feature: log1p for the heavy-tailed byte columns (4, 5), standardise the rest.
+
+# %%
+# Scaling
+# Per-feature: log1p for the heavy-tailed byte columns (4, 5), standardise the rest.
+# Scaler is FITTED ON TRAIN ONLY to be reused on test
 
 def fit_scaler(X):
     mean = X.mean(axis=0)
@@ -102,17 +153,16 @@ def apply_scaler(X, mean, std):
     return scaled
 
 
+# %% [markdown]
+# ## Load & Encode NSL-KDD data
+# LabelEncoder fitted on train, applied to test. Unseen test categories encoded as -1.
+
 # %%
-# Loads training and test data
-# Creates a universal label encoder so test and train have common encodings
-train_data, meta = arff.loadarff('KDDTrain+.arff')
-test_data, test_meta = arff.loadarff('KDDTest+.arff')
-
-from sklearn.preprocessing import LabelEncoder
-
-le = LabelEncoder()
+train_data, _ = arff.loadarff('KDDTrain+.arff')
+test_data, _ = arff.loadarff('KDDTest+.arff')
 df = pd.DataFrame(train_data)
 test_df = pd.DataFrame(test_data)
+
 for col in df.select_dtypes([object]):
         df[col] = df[col].str.decode('utf-8')
         test_df[col] = test_df[col].str.decode('utf-8')
@@ -130,10 +180,8 @@ cats = ['normal', 'anomaly']  # index 0 = normal, index 1 = anomaly
 df['class']      = pd.Categorical(df['class'], categories=cats).codes
 test_df['class'] = pd.Categorical(test_df['class'], categories=cats).codes
 
-# split training and test data into X and Y
 train_X = df.iloc[:, :41].to_numpy(dtype=float)
 train_y = df.iloc[:, 41].to_numpy(dtype=float)
-
 test_X = test_df.iloc[:, :41].to_numpy(dtype=float)
 test_y = test_df.iloc[:, 41].to_numpy(dtype=float)
 
@@ -141,54 +189,60 @@ mean, std = fit_scaler(train_X)
 scaled_train_X = apply_scaler(train_X, mean, std)
 scaled_test_X  = apply_scaler(test_X, mean, std)
 
+# Take 20% of training set to form cross validation set
+scaled_train_X, cv_X, train_y, cv_y = train_test_split(
+    scaled_train_X, train_y, test_size=0.2, stratify=train_y, random_state=0
+)
+
 # %%
 # init weights and biases...
 w_in = np.random.random_sample(train_X[0].shape)
 b_in = np.random.random_sample()
 alpha = 0.1
-iters = 1000
+iters = 700
+
+# %% [markdown]
+# ## Regularisation hyperparameter-tuning
+# Compare train vs CV loss for varying regularisation parameter values.
 
 # %%
-# Fit n-feature training data to model!
-w,b,J_history = gradient_descent(scaled_train_X, train_y, w_in, b_in, alpha, iters)
-print(f"New weights: {w}, new bias: {b}")
+# Use cross validation set to find optimal regularisation parameter out of a small set
+lambdas = [0, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000]
+Jcv_history = []
+Jtrain_history = []
+for l in lambdas:
+    w, b, _ = gradient_descent(scaled_train_X, train_y, w_in, b_in, alpha, iters, l, show=False)
+    Jtrain_history.append(cost(scaled_train_X, train_y, w, b, 0))
+    Jcv_history.append(cost(cv_X, cv_y, w, b, 0))
 
-# %%
-# plot cost vs. iterations
-plt.plot(np.arange(len(J_history)), J_history)
-plt.xlabel("iteration")
-plt.ylabel("cost")
-plt.title("training loss vs. iteration")
+plt.plot(lambdas, Jcv_history, label='Jcv')
+plt.plot(lambdas, Jtrain_history, label='Jtrain')
+plt.xscale('log')
+plt.xlabel("regularisation parameter (lambda)")
+plt.ylabel("unregularised cost")
+plt.title("train vs CV loss against regularisation")
+plt.legend()
 plt.show()
 
-# %%
-# Training cost
-train_preds = (sigmoid(scaled_train_X @ w + b) >= 0.5).astype(int)
-print((train_preds == train_y).mean())
+best_lambda = lambdas[int(np.argmin(Jcv_history))]
+print(f"Optimal lambda = {best_lambda}")
+
+# %% [markdown]
+# ## Final model + test eval
+# Threshold chosed on CV via Youden's J.
+# LAMBDA chosen from previous cell
 
 # %%
-# Test cost
-y_scores = sigmoid(scaled_test_X @ w + b)
-preds    = (y_scores >= 0.016633173499329447).astype(int)
-print((preds == test_y).mean())
+LAMBDA = 100
+w, b, J_history = gradient_descent(scaled_train_X, train_y, w_in, b_in,
+                                   alpha, iters, LAMBDA, show=True)
+plt.plot(J_history)
+plt.xlabel("iteration"); plt.ylabel("cost"); plt.title("training loss"); plt.show()
 
-# %%
-# Creating a confusion matrix on the test set
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-cm = confusion_matrix(test_y, preds, labels=[0, 1])
-disp = ConfusionMatrixDisplay(cm, display_labels=["normal", "anomaly"])
-disp.plot()
+thr = best_threshold_youden(cv_X, cv_y, w, b)
+print(f"Youden's J threshold: {thr:.3f}")
 
-# %%
-from sklearn.metrics import classification_report
-print(classification_report(test_y, preds, target_names=["normal", "anomaly"]))
-
-# %%
-from sklearn.metrics import roc_curve, RocCurveDisplay
-RocCurveDisplay.from_predictions(test_y, y_scores, name="logreg")
-fpr, tpr, thresholds = roc_curve(test_y, y_scores)
-j = np.argmax(tpr - fpr)
-best_threshold = thresholds[j]
-print(best_threshold)
+evaluate(scaled_train_X, train_y, w, b, threshold=0.5, title="TRAIN {thr=0.5}")
+evaluate(scaled_test_X, test_y, w, b, threshold=thr, title="TEST {thr=Youden's J}")
 
 # %%
