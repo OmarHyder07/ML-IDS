@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import copy
 import pandas as pd
 from scipy.io import arff
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     roc_curve, confusion_matrix, ConfusionMatrixDisplay,
@@ -134,28 +134,22 @@ def evaluate(X, y, w, b, threshold=0.5, title=""):
 # Per-feature: log1p for the heavy-tailed byte columns (4, 5), standardise the rest.
 
 # %%
-# Scaling
-# Per-feature: log1p for the heavy-tailed byte columns (4, 5), standardise the rest.
-# Scaler is FITTED ON TRAIN ONLY to be reused on test
-
-def fit_scaler(X):
-    mean = X.mean(axis=0)
-    std  = np.clip(X.std(axis=0), 1e-7, None)
+def fit_scaler(X, std_cols):
+    mean = X[std_cols].mean()
+    std  = np.clip(X[std_cols].std(), 1e-7, None)
     return mean, std
 
-def apply_scaler(X, mean, std):
-    # sorry for magic numbers
-    # items 4 and 5 are source and destination bytes
+def apply_scaler(X, mean, std, std_cols, log_cols):
     scaled = X.copy()
-    scaled[:, :4] = (X[:, :4] - mean[:4]) / std[:4]
-    scaled[:, 4:6] = np.log1p(X[:, 4:6])
-    scaled[:, 6:] = (X[:, 6:] - mean[6:]) / std[6:]
+    scaled[std_cols] = (X[std_cols] - mean) / std
+    scaled[log_cols] = np.log1p(X[log_cols])
     return scaled
 
 
 # %% [markdown]
 # ## Load & Encode NSL-KDD data
-# LabelEncoder fitted on train, applied to test. Unseen test categories encoded as -1.
+# LabelEncoder fitted on train, applied to test. 
+# one-hot encoding applied to 'service' column.
 
 # %%
 train_data, _ = arff.loadarff('KDDTrain+.arff')
@@ -163,31 +157,43 @@ test_data, _ = arff.loadarff('KDDTest+.arff')
 df = pd.DataFrame(train_data)
 test_df = pd.DataFrame(test_data)
 
+# Decode bytes
 for col in df.select_dtypes([object]):
         df[col] = df[col].str.decode('utf-8')
         test_df[col] = test_df[col].str.decode('utf-8')
 
-for col in ['protocol_type', 'service', 'flag']:
-    le = LabelEncoder()
-    le.fit(df[col])
-    df[col] = le.transform(df[col])
-    known = set(le.classes_)
-    test_df[col] = test_df[col].map(
-        lambda v: le.transform([v])[0] if v in known else -1
-    )
-
+# Encode class column
 cats = ['normal', 'anomaly']  # index 0 = normal, index 1 = anomaly
-df['class']      = pd.Categorical(df['class'], categories=cats).codes
-test_df['class'] = pd.Categorical(test_df['class'], categories=cats).codes
+train_class    = pd.Categorical(df['class'], categories=cats).codes
+test_class      = pd.Categorical(test_df['class'], categories=cats).codes
 
-train_X = df.iloc[:, :41].to_numpy(dtype=float)
-train_y = df.iloc[:, 41].to_numpy(dtype=float)
-test_X = test_df.iloc[:, :41].to_numpy(dtype=float)
-test_y = test_df.iloc[:, 41].to_numpy(dtype=float)
+# one-hot encode categorical columns
+categorical_cols = ['protocol_type', 'service', 'flag']
+ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False).set_output(transform='pandas')
+ohe.fit(df[categorical_cols])
 
-mean, std = fit_scaler(train_X)
-scaled_train_X = apply_scaler(train_X, mean, std)
-scaled_test_X  = apply_scaler(test_X, mean, std)
+train_one_hot = ohe.transform(df[categorical_cols]); test_one_hot = ohe.transform(test_df[categorical_cols])
+df = df.drop(categorical_cols + ['class'], axis=1)
+test_df = test_df.drop(categorical_cols + ['class'], axis=1)
+
+# Scale numeric columns
+log_cols = ['src_bytes', 'dst_bytes']
+standard_cols = [c for c in df.columns if c not in log_cols + ['class']]
+df[standard_cols] = df[standard_cols].apply(pd.to_numeric, errors='coerce')
+test_df[standard_cols] = test_df[standard_cols].apply(pd.to_numeric, errors='coerce')
+mean, std = fit_scaler(df, standard_cols)
+scaled_num_train_X = apply_scaler(df, mean, std, standard_cols, log_cols)
+scaled_num_test_X  = apply_scaler(test_df, mean, std, standard_cols, log_cols)
+
+# training sets below currently hold only numeric columns
+train_X = df.to_numpy(dtype=float)
+train_y = train_class
+test_X = test_df.to_numpy(dtype=float)
+test_y = test_class
+
+# Stick one-hot encoded categorical columns back onto the numeric (scaled) columns
+scaled_train_X = np.hstack((scaled_num_train_X, train_one_hot))
+scaled_test_X  = np.hstack((scaled_num_test_X, test_one_hot))
 
 # Take 20% of training set to form cross validation set
 scaled_train_X, cv_X, train_y, cv_y = train_test_split(
@@ -195,11 +201,18 @@ scaled_train_X, cv_X, train_y, cv_y = train_test_split(
 )
 
 # %%
+# Sanity check: do train and test X matrices have the same number of features?
+print(scaled_train_X.shape, scaled_test_X.shape)
+
+# Did the pd.to_numeric with 'coerce' flag create any NaNs?
+print(np.isnan(scaled_train_X).sum(), np.isnan(scaled_test_X).sum())
+
+# %%
 # init weights and biases...
-w_in = np.random.random_sample(train_X[0].shape)
+w_in = np.random.random_sample(scaled_train_X[0].shape)
 b_in = np.random.random_sample()
 alpha = 0.1
-iters = 700
+iters = 1000
 
 # %% [markdown]
 # ## Regularisation hyperparameter-tuning
@@ -207,7 +220,7 @@ iters = 700
 
 # %%
 # Use cross validation set to find optimal regularisation parameter out of a small set
-lambdas = [0, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000]
+lambdas = [0, 0.01, 0.1, 1, 10, 100, 1000]
 Jcv_history = []
 Jtrain_history = []
 for l in lambdas:
@@ -233,6 +246,13 @@ print(f"Optimal lambda = {best_lambda}")
 # LAMBDA chosen from previous cell
 
 # %%
+# Sanity check: do train and test X matrices have the same number of features?
+print(scaled_train_X.shape, scaled_test_X.shape)
+
+# Did the pd.to_numeric with 'coerce' flag create any NaNs?
+print(np.isnan(scaled_train_X).sum(), np.isnan(scaled_test_X).sum())
+
+# %%
 LAMBDA = 100
 w, b, J_history = gradient_descent(scaled_train_X, train_y, w_in, b_in,
                                    alpha, iters, LAMBDA, show=True)
@@ -245,4 +265,11 @@ print(f"Youden's J threshold: {thr:.3f}")
 evaluate(scaled_train_X, train_y, w, b, threshold=0.5, title="TRAIN {thr=0.5}")
 evaluate(scaled_test_X, test_y, w, b, threshold=thr, title="TEST {thr=Youden's J}")
 
+# %% [markdown]
+# ## Quan
+
 # %%
+train_raw = pd.read_csv('KDDTrain+.txt', header=None)
+test_raw  = pd.read_csv('KDDTest+.txt',  header=None)
+train_attack = train_raw.iloc[:. 41]
+test_attack  = test_raw.iloc[:, 41]
