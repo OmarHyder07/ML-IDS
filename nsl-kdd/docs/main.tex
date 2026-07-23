@@ -1,9 +1,10 @@
 \documentclass{article}
 \usepackage{graphicx} % Required for inserting images
 \usepackage{float}
+\usepackage{hyperref}
 
 \title{Supervised Machine Learning for Network Intrusion Detection Systems (NSL-KDD)}
-\author{Omar Hyder}
+\author{Omar Hyder - \href{https://github.com/OmarHyder07/ML-IDS}{GitHub repo}}
 \begin{document}
 
 \maketitle
@@ -65,11 +66,33 @@ For an IDS, a false negative (a missed attack) is far costlier than a false posi
 \paragraph{CIC-IDS2017} Looking forwards, for my flagship model trained on CIC-IDS2017, perhaps and unsupervised anomaly-detection approach (flagging deviation from "normal" rather than matching attack types) is the principled response to the distribution-shift problem. I am glad to have faced this on the training ground of NSL-KDD so as to know the reasonable direction to take next.
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\linewidth]{Screenshot From 2026-07-20 20-10-29.png}
+    \includegraphics[width=0.8\linewidth]{Screenshot From 2026-07-20 20-10-29.png}
     \caption{dst\_bytes vs. src\_bytes with decision boundary}
     \label{fig:placeholder}
 \end{figure}
 \section{Trees: a more expressive supervised model}
 Figure 2 above displays the fundamental simplicity of linear boundaries. Perhaps polynomial features would yield result, but at the cost of extreme compute (post encoding, there were 122 features). Decision trees and their ensembles are more expressive and may raise overall performance, but the distribution-shift ceiling should persist; the seen-vs-novel breakdown will tell us.
-
+\paragraph{Which Tree model?} I trained a single Decision Tree, a Random Forest and an XGBoost classifier. The latter 2 had minimal hyper-parameter tuning. I did not believe the large compute time of using GridSearchCV would be worth it given that a highly tuned tree still faces the same distribution-shift issues logistic regression faced.
+\begin{center}
+\begin{tabular}{ |c | c| } 
+ \hline
+ Model & F2 (anomaly) \\
+ \hline  
+ Tree & 0.742  \\
+ Random Forest & 0.648  \\ 
+ XGBoost & 0.710 \\
+ \hline
+\end{tabular}
+\end{center}
+\paragraph{Novel recall} So, the seen-vs-novel split for a lone Decision Tree is as follows:
+\begin{center}
+\begin{tabular}{ |c | c| } 
+ \hline
+ Recall (seen attack types) & 0.784  \\
+ Recall (novel attack types) & 0.502  \\ 
+ \hline
+\end{tabular}
+\end{center}
+A little better than logistic regression! But still only 0.2\% better than a coin flip. So no, more expressive supervised models are (most likely - maybe greater tuning would flip the script!) not suitable for an IDS.
 \end{document}
+
