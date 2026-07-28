@@ -1,0 +1,33 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{cic-ids2017}
+\author{Omar Hyder}
+\date{July 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+imbalance! insane imbalance.
+Why should we get rid of the port number feature? 
+\subsection{Data preperation}
+
+\section{Imbalance}
+Because it's so imbalanced we maybe use SMOTE. And that's the thing, we are adjusting the balance of recall and precision. We want to catch as many attacks as possible (recall) at the cost of higher false alarms (precision). Missed attacks cost far more! Optimise recall on the rare attack classes, measured by macro-recall / macro-F1
+\paragraph{How solve?} We will conduct a fair test, using the three methods below. Each test will use the same splits for each set. The model will be XGBoost with constant hyper-parameters. 
+\paragraph{Measuring success} The metric that we care about most is macro-recall, but macro-F1 is nice to compare as well because we can't just ignore precision. Perhaps we could have an appendix at the end with full eval repots. We should definitely be showing the precision tradeoff too. perhaps one method will have a good balance but another method will have better recall with the tradeoff of bad precision. but still that method would be better for an IDS.
+\paragraph{rare attack classes} alongside macro, we should show per-attack recall for the rare ones. the whole point of working on the imbalance is to help out these classes. This makes it quite granular, so we aren't just comparing methods on their recall and precision tradeoff, but maybe one method is better at analysing sql injections and another at XSS.
+\subsection{Baseline}
+\subsection{Class weights}
+Before introducing synthetic rows and stuff like that, we can just change the balance of cost. Make it so getting a rare class wrong hurts much more. This is nice because benign has $>$40k attacks while some attacks barely have 100. sample\_weight, compute\_sample\_weight('balanced', y)
+\subsection{Undersampling the majority}
+Probs won't be great, but is cool to try. Just sample less benign rows, so classes are sort of more balanced. It will train faster and it's easy but we're getting rid of data!
+\subsection{SMOTE}
+No leakage! only use SMOTE on split training set. Also interpolation makes no sense if there aren't enough samples - if there are like less than 10 samples it's meaningless and potentially harmful (you'll overfit to that niche). It's good for classes that are rare but not the stuff of legends - say 100+ . imbalanced-learn Pipeline
+\subsection{Conclusion}
+The one comparison table to rule them all. Probably led by macro-recall. can mention smaller intricacies if they are itneresting. then a short verdict on which one to use and what tradeoffs we have with using it.
+\section{held-out-by-day split}
+
+\end{document}
