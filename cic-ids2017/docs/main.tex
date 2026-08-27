@@ -19,6 +19,7 @@
 \maketitle
 \begin{abstract}
     Machine-learning intrusion detection systems routinely report $>99\%$ accuracy, but on random splits that expose every attack type during training. This write-up seeks to investigate what happens when models are introduced to zero-days. I conducted two experiments on the CIC-IDS2017 dataset: a random split and an unseen-class split, comparing XGBoost, Isolation Forest and Local Outlier Factor models. With all attack classes seen, XGBoost reaches a false-positive rate $\sim$1-2\% and a macro attack recall $\sim$0.85. With none seen, macro attack recall falls to 0.23 and weighted recall to 0.01. Unsupervised anomaly detectors recover 0.67-0.76 macro attack recall at the cost of 37-46\% FPR. Their relative ranking reverses between validation and test depending on which unseen attack are present, suggesting even zero-day focused evaluation can mislead. I intend to display the gap between known-attack and zero-day performance, expose how it is architecture agnostic, and advocate for held-out class splits to be a standard in future machine-learning intrusion detection systems research. 
+	\par \href{https://github.com/OmarHyder07/ML-IDS}{Notebooks available on GitHub.}
 \end{abstract}
 
 \tableofcontents
