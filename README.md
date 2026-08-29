@@ -18,4 +18,4 @@ Table 7:
 ```nsl-kdd``` - Initial exploration of supervised ML-IDS: logistic regression and decision trees.
 
 ## How to reproduce results
-Download flow data (CSVs/MachineLearningCSV.zip) from [cicresearch](https://cicresearch.ca/CICDataset/CIC-IDS-2017/). Extract in ```cic-ids2017/data/```. Run notebooks in order. 
+Download flow data (CSVs/MachineLearningCSV.zip) from [cicresearch](https://cicresearch.ca/CICDataset/CIC-IDS-2017/). Extract in ```cic-ids2017/data/```. Create virtual environment, python v3.14.4, install dependencies in venv via ```pip install requirements.txt```. Run notebooks in order. (Code ran on Ubuntu 26.04 LTS)
