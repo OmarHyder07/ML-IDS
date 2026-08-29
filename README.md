@@ -12,16 +12,10 @@ Table 7:
 |iForest|Temporal|0/7|0.3744|0.29|0.67|0.46|
 |LOF|Temporal|0/7|0.4602|0.40|0.76|0.91|
 
-## File Structure
-ml-ids/
+## Directories
+```cic-ids2017``` - write-up notebooks: Imbalance handling experiment, supervised temporal performance & anomaly detection.
 
-├── cic-ids2017/
-│   ├── anomaly_detection.ipynb - iForest & LOF (Tables 5 & 6; Figure 2 & 3)
-│   ├── imbalance_experiment.ipynb - XGBoost imbalance handling (Tables 1, 2 & 3; Figure 1)
-│   └── supervised_temporal.ipynb - XGBoost held-out split (Table 4)
-└── nsl-kdd/
-│   ├── dec_tree.ipynb
-│   └── log_reg.ipynb
+```nsl-kdd``` - Initial exploration of supervised ML-IDS: logistic regression and decision trees.
 
 ## How to reproduce results
 Download flow data (CSVs/MachineLearningCSV.zip) from [cicresearch](https://cicresearch.ca/CICDataset/CIC-IDS-2017/). Extract in ```cic-ids2017/data/```. Run notebooks in order. 
